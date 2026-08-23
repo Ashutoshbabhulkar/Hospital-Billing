@@ -97,6 +97,7 @@ class BillingApp {
     this.renderDoctorSettingsList();
     this.setupCustomSurgeryForm();
     this.setupDatabaseExportImport();
+    this.setupCloudSync();
     this.checkEkaParams();
     this.renderPaymentEntriesTable();
     this.renderChargeTable();
@@ -114,7 +115,54 @@ class BillingApp {
       this.renderDoctorsDropdown();
       this.renderDoctorSettingsList();
       this.renderPdfPreview();
+      if (window.cloudDBStore) window.cloudDBStore.pushToCloud();
     });
+  }
+
+  async setupCloudSync() {
+    if (!window.cloudDBStore) return;
+
+    window.cloudDBStore.subscribe(status => {
+      this.updateCloudBadge(status);
+    });
+
+    // Fetch master online cloud memory on startup
+    const onlineData = await window.cloudDBStore.fetchFromCloud();
+    if (onlineData) {
+      if (onlineData.headerSettings && window.headerFooterStore) {
+        window.headerFooterStore.saveSettings(onlineData.headerSettings);
+      }
+      if (Array.isArray(onlineData.historyBills) && window.historyStore) {
+        localStorage.setItem("hospital_billing_history_v1", JSON.stringify(onlineData.historyBills));
+      }
+      if (Array.isArray(onlineData.customSurgeries) && window.surgeryPresetStore) {
+        window.surgeryPresetStore.customPresets = onlineData.customSurgeries;
+        window.surgeryPresetStore.persist();
+      }
+      this.loadSurgeryPresetsDropdown();
+      this.renderDoctorsDropdown();
+      this.setupHeaderFooterForm();
+      this.renderHistoryTable();
+      this.renderPdfPreview();
+      this.showNotification("☁️ Online Cloud Memory Synced!", "success");
+    }
+  }
+
+  updateCloudBadge(status) {
+    const badge = document.getElementById("cloudSyncBadge");
+    if (!badge) return;
+
+    badge.className = "cloud-status-badge";
+    if (status === "synced") {
+      badge.classList.add("synced");
+      badge.textContent = "☁️ Cloud Synced";
+    } else if (status === "syncing") {
+      badge.classList.add("syncing");
+      badge.textContent = "⚡ Syncing Online...";
+    } else {
+      badge.classList.add("offline");
+      badge.textContent = "💾 Local Mode";
+    }
   }
 
   setupCustomSurgeryForm() {
@@ -1333,6 +1381,7 @@ class BillingApp {
       window.historyStore.saveBill(this.billData);
       this.renderHistoryTable();
       this.showNotification("Payment details & split transactions saved successfully!", "success");
+      if (window.cloudDBStore) window.cloudDBStore.pushToCloud();
     } else {
       this.showNotification("Payment details applied to bill calculations!", "info");
     }
@@ -1347,6 +1396,7 @@ class BillingApp {
     const savedRecord = window.historyStore.saveBill(this.billData);
     this.showNotification(`Bill ${savedRecord.billNo} saved successfully!`, "success");
     this.renderHistoryTable();
+    if (window.cloudDBStore) window.cloudDBStore.pushToCloud();
   }
 
   downloadBillPdf() {

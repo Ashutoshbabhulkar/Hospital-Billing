@@ -141,6 +141,33 @@ body {
   font-weight: 600;
 }
 
+.cloud-status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #34d399;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(52, 211, 153, 0.15);
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cloud-status-badge.syncing {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.cloud-status-badge.offline {
+  color: #fb7185;
+  background: rgba(251, 113, 133, 0.15);
+  border-color: rgba(251, 113, 133, 0.3);
+}
+
 .nav-tabs {
   display: flex;
   gap: 6px;
