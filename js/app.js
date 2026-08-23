@@ -119,11 +119,33 @@ class BillingApp {
   async setupCloudSync() {
     if (!window.cloudDBStore) return;
 
+    const cloudKeyInput = document.getElementById("cloudAppKeyInput");
+    if (cloudKeyInput) {
+      cloudKeyInput.value = window.cloudDBStore.config.appKey || "hospital_billing_ashutosh";
+      cloudKeyInput.addEventListener("change", (e) => {
+        const val = e.target.value.trim() || "hospital_billing_ashutosh";
+        window.cloudDBStore.saveConfig({ appKey: val });
+        this.syncCloudNow();
+      });
+    }
+
+    const btnSync = document.getElementById("btnSyncCloudNow");
+    if (btnSync) {
+      btnSync.addEventListener("click", () => {
+        this.syncCloudNow();
+      });
+    }
+
     window.cloudDBStore.subscribe(status => {
       this.updateCloudBadge(status);
     });
 
     // Fetch master online cloud memory on startup
+    await this.syncCloudNow();
+  }
+
+  async syncCloudNow() {
+    if (!window.cloudDBStore) return;
     const onlineData = await window.cloudDBStore.fetchFromCloud();
     if (onlineData) {
       if (onlineData.headerSettings && window.headerFooterStore) {
@@ -142,6 +164,10 @@ class BillingApp {
       this.renderHistoryTable();
       this.renderPdfPreview();
       this.showNotification("☁️ Online Cloud Memory Synced!", "success");
+    } else {
+      // Push local data to cloud key if cloud bin is uninitialized
+      await window.cloudDBStore.pushToCloud();
+      this.showNotification("☁️ Initialized Online Cloud Memory!", "info");
     }
   }
 

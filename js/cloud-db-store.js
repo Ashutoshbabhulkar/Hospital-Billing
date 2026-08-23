@@ -1,14 +1,14 @@
 /**
- * Online Cloud Database Sync Module
- * Enables global online memory across all devices & browsers hosted on GitHub Pages.
- * Persists hospital settings, signatures, doctors, custom rates, and bill records online.
+ * Online Cloud Database Memory & Sync Module
+ * Powered by zero-auth REST cloud memory service.
+ * Persists hospital branding, doctors, custom surgery rates, and patient bills online globally across all devices & browsers.
  */
 
 class CloudDBStore {
   constructor() {
-    this.STORAGE_KEY_CLOUD = "hospital_billing_cloud_config_v1";
+    this.STORAGE_KEY_CLOUD = "hospital_billing_cloud_config_v2";
     this.config = this.loadConfig();
-    this.syncStatus = "synced"; // 'synced', 'syncing', 'offline'
+    this.syncStatus = "offline"; // 'synced', 'syncing', 'offline'
     this.listeners = [];
   }
 
@@ -21,7 +21,8 @@ class CloudDBStore {
     }
     return {
       autoSync: true,
-      cloudBinId: "66c8b9d0acd3cb34a8775f0a", // Default online cloud memory bin ID
+      appKey: "hospital_billing_ashutosh", // Shared online cloud secret key
+      dataKey: "master",
       lastSyncedAt: null
     };
   }
@@ -32,6 +33,22 @@ class CloudDBStore {
       localStorage.setItem(this.STORAGE_KEY_CLOUD, JSON.stringify(this.config));
     } catch (e) {
       console.error("Failed to save cloud config", e);
+    }
+  }
+
+  safeBtoa(str) {
+    try {
+      return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1)));
+    } catch (e) {
+      return btoa(str);
+    }
+  }
+
+  safeAtob(str) {
+    try {
+      return decodeURIComponent(Array.prototype.map.call(atob(str), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    } catch (e) {
+      return atob(str);
     }
   }
 
@@ -53,28 +70,26 @@ class CloudDBStore {
    */
   async fetchFromCloud() {
     this.setSyncStatus("syncing");
-    try {
-      // Use fallback JSONBin / Cloud API endpoint
-      const binId = this.config.cloudBinId || "66c8b9d0acd3cb34a8775f0a";
-      const res = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
-        method: "GET",
-        headers: {
-          "X-Master-Key": "$2a$10$8.uLp1PzD1O50.G4nO62J.P2kC1uJ1nN9qL5oD3wR2m8V7s9t0e2W"
-        }
-      });
+    const appKey = this.config.appKey || "hospital_billing_ashutosh";
+    const dataKey = this.config.dataKey || "master";
 
+    try {
+      const res = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/${appKey}/${dataKey}`);
       if (res.ok) {
-        const json = await res.json();
-        const record = json.record || json;
-        if (record && (record.headerSettings || record.historyBills)) {
-          this.setSyncStatus("synced");
-          this.config.lastSyncedAt = new Date().toISOString();
-          this.saveConfig(this.config);
-          return record;
+        const rawText = await res.json();
+        if (rawText && typeof rawText === 'string' && rawText.length > 5) {
+          const jsonStr = this.safeAtob(rawText);
+          const record = JSON.parse(jsonStr);
+          if (record && (record.headerSettings || record.historyBills || record.customSurgeries)) {
+            this.setSyncStatus("synced");
+            this.config.lastSyncedAt = new Date().toISOString();
+            this.saveConfig(this.config);
+            return record;
+          }
         }
       }
     } catch (e) {
-      console.warn("Online Cloud DB fetch fallback note:", e);
+      console.warn("Online Cloud DB fetch note:", e);
     }
     this.setSyncStatus("offline");
     return null;
@@ -86,28 +101,29 @@ class CloudDBStore {
   async pushToCloud() {
     if (!this.config.autoSync) return false;
     this.setSyncStatus("syncing");
-    
-    try {
-      const binId = this.config.cloudBinId || "66c8b9d0acd3cb34a8775f0a";
-      const payload = this.getFullPayload();
+    const appKey = this.config.appKey || "hospital_billing_ashutosh";
+    const dataKey = this.config.dataKey || "master";
 
-      const res = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Master-Key": "$2a$10$8.uLp1PzD1O50.G4nO62J.P2kC1uJ1nN9qL5oD3wR2m8V7s9t0e2W"
-        },
-        body: JSON.stringify(payload)
+    try {
+      const payload = this.getFullPayload();
+      const str = JSON.stringify(payload);
+      const b64 = this.safeBtoa(str);
+
+      const res = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${appKey}/${dataKey}/${b64}`, {
+        method: "POST"
       });
 
       if (res.ok) {
-        this.setSyncStatus("synced");
-        this.config.lastSyncedAt = new Date().toISOString();
-        this.saveConfig(this.config);
-        return true;
+        const text = await res.text();
+        if (text === "true" || text.includes("true")) {
+          this.setSyncStatus("synced");
+          this.config.lastSyncedAt = new Date().toISOString();
+          this.saveConfig(this.config);
+          return true;
+        }
       }
     } catch (e) {
-      console.warn("Online Cloud DB push fallback note:", e);
+      console.warn("Online Cloud DB push note:", e);
     }
     this.setSyncStatus("offline");
     return false;
