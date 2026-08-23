@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "Eka Care Patient Billing Extractor",
+  "version": "1.0.0",
+  "description": "Extract patient EMR details from Eka Care and open directly in Hospital Billing Agent.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "https://*.eka.care/*",
+    "http://*.eka.care/*",
+    "https://*.ekacare.com/*",
+    "http://*.ekacare.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Hospital Billing Agent - Eka Care Extractor",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.eka.care/*",
+        "http://*.eka.care/*",
+        "https://*.ekacare.com/*",
+        "http://*.ekacare.com/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
+

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eka Care Billing Extractor</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --accent: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 340px;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      padding: 16px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
+    .header-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--primary);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .header-icon svg { width: 18px; height: 18px; stroke: #ffffff; }
+    .header-text h1 { font-size: 15px; font-weight: 700; color: #ffffff; }
+    .header-text p { font-size: 11px; color: var(--text-muted); }
+    
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      background-color: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      margin-bottom: 14px;
+    }
+    .status-badge .dot {
+      width: 6px; height: 6px; border-radius: 50%; background-color: #34d399;
+    }
+
+    .form-group {
+      margin-bottom: 10px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .form-control {
+      width: 100%;
+      padding: 7px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background-color: var(--card-bg);
+      color: var(--text);
+      font-size: 13px;
+    }
+    .form-control:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+    }
+    .row .form-group { flex: 1; }
+
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background-color: var(--primary);
+      color: #ffffff;
+    }
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+    }
+    .btn-secondary {
+      background-color: var(--card-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+      background-color: #273549;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-icon">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+    </div>
+    <div class="header-text">
+      <h1>Hospital Billing Agent</h1>
+      <p>Eka Care Integration</p>
+    </div>
+  </div>
+
+  <div class="status-badge" id="status-badge">
+    <span class="dot"></span>
+    <span id="status-text">Scanning Eka Care page...</span>
+  </div>
+
+  <form id="patient-form">
+    <div class="form-group">
+      <label>Patient Name</label>
+      <input type="text" id="patientName" class="form-control" placeholder="Patient Full Name">
+    </div>
+
+    <div class="row">
+      <div class="form-group">
+        <label>UHID / IPD No</label>
+        <input type="text" id="uhid" class="form-control" placeholder="UHID-10023">
+      </div>
+      <div class="form-group">
+        <label>Mobile</label>
+        <input type="text" id="mobile" class="form-control" placeholder="9876543210">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="form-group">
+        <label>Age</label>
+        <input type="text" id="age" class="form-control" placeholder="42">
+      </div>
+      <div class="form-group">
+        <label>Gender</label>
+        <select id="gender" class="form-control">
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Doctor Name</label>
+      <input type="text" id="doctorName" class="form-control" placeholder="Dr. Apex Sharma">
+    </div>
+
+    <div class="form-group">
+      <label>Diagnosis / Procedure</label>
+      <input type="text" id="diagnosis" class="form-control" placeholder="Laparoscopic Cholecystectomy">
+    </div>
+  </form>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="btn-create-bill">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg>
+      Create Hospital Bill
+    </button>
+    <button class="btn btn-secondary" id="btn-rescan">
+      Rescan Eka Care Page
+    </button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
