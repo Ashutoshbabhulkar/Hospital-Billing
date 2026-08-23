@@ -47,10 +47,10 @@ class BillingApp {
       roomNo: "Suite 302",
       diagnosis: "Eversion of hydrocele sac",
       paymentMode: "Cash / Card / UPI",
-      paymentStatus: "Paid",
+      paymentStatus: "Pending",
       discountPercent: 0,
       taxPercent: 0,
-      advancePaid: 50000,
+      advancePaid: 0,
       paymentEntries: this.getDefaultPayments(),
       chargeItems: this.getDefaultCharges()
     };
@@ -60,10 +60,7 @@ class BillingApp {
   }
 
   getDefaultPayments() {
-    return [
-      { id: 1, mode: "Cash", amount: 50000, reference: "Advance Paid at Admission" },
-      { id: 2, mode: "UPI / GPay / PhonePe", amount: 15000, reference: "Paid at Discharge" }
-    ];
+    return [];
   }
 
   getDefaultCharges() {
@@ -915,24 +912,26 @@ class BillingApp {
     const taxAmt = (taxableAmt * (this.billData.taxPercent || 0)) / 100;
     const grandTotal = Math.round(taxableAmt + taxAmt);
     
-    const totalPaymentsCollected = (this.billData.paymentEntries || []).reduce((sum, p) => sum + (p.amount || 0), 0);
+    const paidAtDischarge = (this.billData.paymentEntries || []).reduce((sum, p) => sum + (p.amount || 0), 0);
     const advancePaid = this.billData.advancePaid || 0;
-    const paidAtDischarge = Math.max(0, grandTotal - advancePaid);
-    const balanceDue = Math.max(0, grandTotal - totalPaymentsCollected);
+    const totalPaidSoFar = advancePaid + paidAtDischarge;
+    const balanceDue = Math.max(0, grandTotal - totalPaidSoFar);
 
     this.billData.subtotal = subtotal;
     this.billData.totalDiscount = totalDiscount;
     this.billData.grandTotal = grandTotal;
-    this.billData.totalPaymentsCollected = totalPaymentsCollected;
     this.billData.paidAtDischarge = paidAtDischarge;
+    this.billData.totalPaymentsCollected = totalPaidSoFar;
     this.billData.balanceDue = balanceDue;
     this.billData.amountInWords = numberToWordsINR(grandTotal);
 
-    // Auto update status if total payments cover the bill
-    if (totalPaymentsCollected >= grandTotal && grandTotal > 0) {
+    // Auto update status dynamically based on total paid vs grand total
+    if (totalPaidSoFar >= grandTotal && grandTotal > 0) {
       this.billData.paymentStatus = "Paid";
-    } else if (totalPaymentsCollected > 0 && totalPaymentsCollected < grandTotal) {
+    } else if (totalPaidSoFar > 0) {
       this.billData.paymentStatus = "Partially Paid";
+    } else {
+      this.billData.paymentStatus = "Pending";
     }
 
     const statusEl = document.getElementById("paymentStatus");
@@ -1191,9 +1190,10 @@ class BillingApp {
                 <div class="pdf-payment-split-title" style="margin: 0;">Payment Breakdown & Split Modes:</div>
                 <button type="button" class="btn btn-sm btn-primary no-print btn-pdf-add-pay" style="font-size: 10px; padding: 2px 6px;">+ Add Mode</button>
               </div>
+              ${(data.paymentEntries && data.paymentEntries.length > 0) ? `
               <table class="pdf-payment-split-table">
                 <tbody>
-                  ${(data.paymentEntries || []).map(p => `
+                  ${data.paymentEntries.map(p => `
                     <tr>
                       <td contenteditable="true" data-pay-id="${p.id}" data-pay-key="mode"><strong>${p.mode}</strong></td>
                       <td contenteditable="true" data-pay-id="${p.id}" data-pay-key="reference" style="color: #64748b;">${p.reference || 'Ref details'}</td>
@@ -1205,10 +1205,15 @@ class BillingApp {
                   `).join('')}
                 </tbody>
               </table>
+              ` : `
+              <div style="font-size: 11px; color: #b45309; padding: 4px 8px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;">
+                <span>⚠️ Payment mode details pending. Balance: <strong>₹${(data.balanceDue || 0).toLocaleString('en-IN')}</strong></span>
+              </div>
+              `}
             </div>
 
             <div class="payment-meta" style="margin-top: 8px;">
-              <div>Status: <strong class="badge-status-paid" contenteditable="true" data-field-key="paymentStatus">${data.paymentStatus}</strong></div>
+              <div>Status: <strong class="${(data.balanceDue || 0) > 0 ? ((data.advancePaid || 0) > 0 ? 'badge-status-partial' : 'badge-status-pending') : 'badge-status-paid'}" contenteditable="true" data-field-key="paymentStatus">${data.paymentStatus}</strong></div>
             </div>
           </div>
 
@@ -1230,10 +1235,21 @@ class BillingApp {
                 <td>Advance Paid:</td>
                 <td contenteditable="true" data-field-key="advancePaid" style="text-align: right; color: #16a34a; font-weight: 600;">₹${(data.advancePaid || 0).toLocaleString('en-IN')}</td>
               </tr>
-              <tr style="background-color: #fef3c7; font-weight: 700;">
+              <tr>
                 <td>Paid at Discharge:</td>
-                <td style="text-align: right; color: #d97706;">₹${(data.paidAtDischarge || 0).toLocaleString('en-IN')}</td>
+                <td style="text-align: right; color: #d97706; font-weight: 600;">₹${(data.paidAtDischarge || 0).toLocaleString('en-IN')}</td>
               </tr>
+              ${(data.balanceDue || 0) > 0 ? `
+              <tr style="background-color: #fef2f2; font-weight: 700; border-top: 1px solid #fecaca;">
+                <td style="color: #dc2626;">BALANCE DUE:</td>
+                <td style="text-align: right; color: #dc2626;">₹${(data.balanceDue || 0).toLocaleString('en-IN')} (PENDING)</td>
+              </tr>
+              ` : `
+              <tr style="background-color: #f0fdf4; font-weight: 700; border-top: 1px solid #bbf7d0;">
+                <td style="color: #16a34a;">NET STATUS:</td>
+                <td style="text-align: right; color: #16a34a;">PAID IN FULL ✓</td>
+              </tr>
+              `}
             </table>
           </div>
         </div>
