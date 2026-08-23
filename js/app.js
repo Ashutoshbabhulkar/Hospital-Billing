@@ -95,6 +95,8 @@ class BillingApp {
     this.setupEventListeners();
     this.setupHeaderFooterForm();
     this.renderDoctorSettingsList();
+    this.setupCustomSurgeryForm();
+    this.setupDatabaseExportImport();
     this.checkEkaParams();
     this.renderPaymentEntriesTable();
     this.renderChargeTable();
@@ -113,6 +115,121 @@ class BillingApp {
       this.renderDoctorSettingsList();
       this.renderPdfPreview();
     });
+  }
+
+  setupCustomSurgeryForm() {
+    const form = document.getElementById("formAddSurgeryPreset");
+    if (!form) return;
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const category = document.getElementById("newPresetCategory").value || "⭐ Custom Surgeries";
+      const name = document.getElementById("newPresetName").value.trim();
+      if (!name) return;
+
+      const surgeonFee = parseFloat(document.getElementById("newPresetSurgeon").value) || 0;
+      const assistantFee = parseFloat(document.getElementById("newPresetAssistant").value) || 0;
+      const anesthesiaFee = parseFloat(document.getElementById("newPresetAnesthesia").value) || 0;
+      const otCharges = parseFloat(document.getElementById("newPresetOt").value) || 0;
+      const stayCharges = parseFloat(document.getElementById("newPresetStay").value) || 0;
+      const miscCharges = parseFloat(document.getElementById("newPresetMisc").value) || 0;
+
+      const charges = [];
+      if (surgeonFee > 0) charges.push({ name: "Surgeon Fee", amount: surgeonFee, category: "Surgeon" });
+      if (assistantFee > 0) charges.push({ name: "Assistant Fee", amount: assistantFee, category: "Assistant" });
+      if (anesthesiaFee > 0) charges.push({ name: "Anesthesia Fee", amount: anesthesiaFee, category: "Anaesthetist" });
+      if (otCharges > 0) charges.push({ name: "OT Charges", amount: otCharges, category: "OT" });
+      if (stayCharges > 0) charges.push({ name: "Hospital Stay Charge", amount: stayCharges, category: "Room" });
+      if (miscCharges > 0) charges.push({ name: "Nursing & Consumables", amount: miscCharges, category: "Pharmacy" });
+
+      if (charges.length === 0) {
+        charges.push({ name: "Procedure Package Fee", amount: 10000, category: "Misc" });
+      }
+
+      const newPreset = {
+        id: "custom_" + Date.now(),
+        name: name,
+        category: category,
+        department: category.includes("Urology") ? "Urology" : "General Surgery",
+        charges: charges
+      };
+
+      if (window.surgeryPresetStore) {
+        window.surgeryPresetStore.saveCustomPreset(newPreset);
+      }
+      this.loadSurgeryPresetsDropdown();
+      form.reset();
+      this.showNotification(`Added "${name}" package to surgery dropdown list!`, "success");
+    });
+  }
+
+  setupDatabaseExportImport() {
+    const exportBtn = document.getElementById("btnExportFullDatabase");
+    if (exportBtn) {
+      exportBtn.addEventListener("click", () => {
+        this.exportFullDatabase();
+      });
+    }
+
+    const importInput = document.getElementById("importDatabaseFile");
+    if (importInput) {
+      importInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          this.importFullDatabase(file);
+          importInput.value = "";
+        }
+      });
+    }
+  }
+
+  exportFullDatabase() {
+    const database = {
+      version: "1.0",
+      exportedAt: new Date().toISOString(),
+      headerSettings: window.headerFooterStore ? window.headerFooterStore.getSettings() : {},
+      historyBills: window.historyStore ? window.historyStore.getAllBills() : [],
+      customSurgeries: window.surgeryPresetStore ? window.surgeryPresetStore.customPresets : []
+    };
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(database, null, 2));
+    const dlAnchor = document.createElement("a");
+    dlAnchor.setAttribute("href", dataStr);
+    const dateStr = new Date().toISOString().split("T")[0];
+    dlAnchor.setAttribute("download", `Hospital_Billing_Database_Backup_${dateStr}.json`);
+    document.body.appendChild(dlAnchor);
+    dlAnchor.click();
+    document.body.removeChild(dlAnchor);
+    this.showNotification("Full Database Backup JSON exported!", "success");
+  }
+
+  importFullDatabase(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const imported = JSON.parse(e.target.result);
+        if (imported.headerSettings && window.headerFooterStore) {
+          window.headerFooterStore.saveSettings(imported.headerSettings);
+        }
+        if (Array.isArray(imported.historyBills) && window.historyStore) {
+          localStorage.setItem("hospital_billing_history_v1", JSON.stringify(imported.historyBills));
+        }
+        if (Array.isArray(imported.customSurgeries) && window.surgeryPresetStore) {
+          window.surgeryPresetStore.customPresets = imported.customSurgeries;
+          window.surgeryPresetStore.persist();
+        }
+        this.loadSurgeryPresetsDropdown();
+        this.renderDoctorsDropdown();
+        this.setupHeaderFooterForm();
+        this.renderHistoryTable();
+        this.renderPdfPreview();
+        this.showNotification("Database successfully imported and restored!", "success");
+      } catch (err) {
+        alert("Failed to parse database backup JSON file.");
+      }
+    };
+    reader.readAsText(file);
   }
 
   setupThemeToggle() {
@@ -307,10 +424,12 @@ class BillingApp {
   loadSurgeryPresetsDropdown() {
     const select = document.getElementById("surgeryPresetSelect");
     if (!select) return;
-    select.innerHTML = `<option value="">-- Load Preset Surgery Rate Package --</option>`;
+    select.innerHTML = `<option value="">-- Select Surgery / Procedure Rate Package --</option>`;
     
+    const allPresets = window.surgeryPresetStore ? window.surgeryPresetStore.getAllPresets() : window.SURGERY_PRESETS;
+
     const categories = {};
-    window.SURGERY_PRESETS.forEach(preset => {
+    allPresets.forEach(preset => {
       const cat = preset.category || "General Surgery";
       if (!categories[cat]) categories[cat] = [];
       categories[cat].push(preset);
@@ -322,7 +441,7 @@ class BillingApp {
       presets.forEach(p => {
         const opt = document.createElement("option");
         opt.value = p.id;
-        const totalPkgCost = p.charges.reduce((s, c) => s + c.amount, 0);
+        const totalPkgCost = (p.charges || []).reduce((s, c) => s + (c.amount || 0), 0);
         opt.textContent = `${p.name} (Total: ₹${totalPkgCost.toLocaleString('en-IN')})`;
         optgroup.appendChild(opt);
       });
@@ -331,18 +450,19 @@ class BillingApp {
   }
 
   applySurgeryPreset(presetId) {
-    const preset = window.SURGERY_PRESETS.find(p => p.id === presetId);
+    const allPresets = window.surgeryPresetStore ? window.surgeryPresetStore.getAllPresets() : window.SURGERY_PRESETS;
+    const preset = allPresets.find(p => p.id === presetId);
     if (!preset) return;
 
     this.billData.diagnosis = preset.name;
-    this.billData.department = preset.department;
+    this.billData.department = preset.department || preset.category || "General Surgery";
     document.getElementById("diagnosis").value = preset.name;
-    document.getElementById("department").value = preset.department;
+    document.getElementById("department").value = this.billData.department;
 
     this.billData.chargeItems = preset.charges.map((c, index) => ({
       id: Date.now() + index,
       name: c.name,
-      category: c.category,
+      category: c.category || "Misc",
       qty: 1,
       unitPrice: c.amount,
       discount: 0,
@@ -352,6 +472,7 @@ class BillingApp {
     this.renderChargeTable();
     this.updateCalculations();
     this.renderPdfPreview();
+    this.showNotification(`Loaded package preset: ${preset.name}`, "info");
   }
 
   addPaymentEntry(mode = "Cash", amount = 10000, reference = "") {

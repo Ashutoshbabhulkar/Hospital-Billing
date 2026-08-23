@@ -648,7 +648,51 @@ const SURGERY_PRESETS = [
   }
 ];
 
+class SurgeryPresetStore {
+  constructor() {
+    this.STORAGE_KEY = "hospital_custom_surgery_presets_v1";
+    this.customPresets = this.loadCustomPresets();
+  }
+
+  loadCustomPresets() {
+    try {
+      const saved = localStorage.getItem(this.STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error("Failed to load custom surgery presets", e);
+    }
+    return [];
+  }
+
+  saveCustomPreset(preset) {
+    if (!preset.id) {
+      preset.id = "custom_" + Date.now();
+    }
+    this.customPresets.unshift(preset);
+    this.persist();
+    return preset;
+  }
+
+  removeCustomPreset(id) {
+    this.customPresets = this.customPresets.filter(p => p.id !== id);
+    this.persist();
+  }
+
+  persist() {
+    try {
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.customPresets));
+    } catch (e) {
+      console.error("Failed to save custom surgery presets", e);
+    }
+  }
+
+  getAllPresets() {
+    return [...this.customPresets, ...SURGERY_PRESETS];
+  }
+}
+
 if (typeof window !== "undefined") {
   window.SURGERY_PRESETS = SURGERY_PRESETS;
+  window.surgeryPresetStore = new SurgeryPresetStore();
 }
 
