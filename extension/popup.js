@@ -15,22 +15,47 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      chrome.tabs.sendMessage(tabs[0].id, { action: "extractPatientData" }, (response) => {
-        if (chrome.runtime.lastError || !response) {
-          statusText.textContent = "Open an Eka Care patient page to extract";
-          // Try loading last extracted from local storage fallback
-          chrome.storage.local.get(["lastExtractedPatient"], (result) => {
-            if (result.lastExtractedPatient) {
-              populateForm(result.lastExtractedPatient);
-              statusText.textContent = "Loaded last saved patient details";
-            }
-          });
+      const activeTab = tabs[0];
+      
+      // Try sending message to content script
+      chrome.tabs.sendMessage(activeTab.id, { action: "extractPatientData" }, (response) => {
+        if (!chrome.runtime.lastError && response && response.data) {
+          populateForm(response.data);
+          statusText.textContent = "✓ Patient details captured successfully!";
           return;
         }
 
-        if (response && response.data) {
-          populateForm(response.data);
-          statusText.textContent = "Patient details captured from Eka Care!";
+        // Programmatic fallback script injection if content.js wasn't pre-loaded
+        if (chrome.scripting && activeTab.id) {
+          chrome.scripting.executeScript({
+            target: { tabId: activeTab.id },
+            files: ["content.js"]
+          }, () => {
+            if (chrome.runtime.lastError) {
+              console.warn("Script injection note:", chrome.runtime.lastError.message);
+            }
+            // Retry extraction after injection
+            setTimeout(() => {
+              chrome.tabs.sendMessage(activeTab.id, { action: "extractPatientData" }, (retryRes) => {
+                if (retryRes && retryRes.data) {
+                  populateForm(retryRes.data);
+                  statusText.textContent = "✓ Patient details captured successfully!";
+                } else {
+                  // Fallback to last extracted patient record in chrome storage
+                  chrome.storage.local.get(["lastExtractedPatient"], (result) => {
+                    if (result && result.lastExtractedPatient) {
+                      populateForm(result.lastExtractedPatient);
+                      statusText.textContent = "Loaded last saved patient details";
+                    } else {
+                      statusText.textContent = "Ready to generate bill. Enter details or click 'Create Bill'.";
+                    }
+                  });
+                }
+              });
+            }, 150);
+          });
+        } else {
+          statusText.textContent = "Ready to generate bill.";
         }
       });
     });

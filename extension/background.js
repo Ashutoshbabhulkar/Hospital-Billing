@@ -24,11 +24,15 @@ chrome.runtime.onInstalled.addListener(() => {
 if (typeof chrome !== "undefined" && chrome.contextMenus && chrome.contextMenus.onClicked) {
   chrome.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId === "generateBillContext" && info.selectionText) {
-      const params = new URLSearchParams({
-        name: info.selectionText.trim(),
-        source: "contextMenu"
+      let billingAppUrl = "https://ashutoshbabhulkar.github.io/Hospital-Billing/";
+      chrome.storage.local.get(["customAppUrl"], (res) => {
+        if (res && res.customAppUrl) billingAppUrl = res.customAppUrl;
+        const params = new URLSearchParams({
+          name: info.selectionText.trim(),
+          source: "contextMenu"
+        });
+        chrome.tabs.create({ url: `${billingAppUrl}?${params.toString()}` });
       });
-      chrome.tabs.create({ url: `http://localhost:3000/?${params.toString()}` });
     }
   });
 }

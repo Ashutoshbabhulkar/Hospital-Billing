@@ -10,12 +10,7 @@
     "contextMenus"
   ],
   "host_permissions": [
-    "https://*.eka.care/*",
-    "http://*.eka.care/*",
-    "https://*.ekacare.com/*",
-    "http://*.ekacare.com/*",
-    "http://localhost/*",
-    "http://127.0.0.1/*"
+    "<all_urls>"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -29,12 +24,8 @@
   "content_scripts": [
     {
       "matches": [
-        "https://*.eka.care/*",
-        "http://*.eka.care/*",
-        "https://*.ekacare.com/*",
-        "http://*.ekacare.com/*",
-        "http://localhost/*",
-        "http://127.0.0.1/*"
+        "https://*/*",
+        "http://*/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"
