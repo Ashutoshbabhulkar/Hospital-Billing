@@ -67,7 +67,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (data.mobile) document.getElementById("mobile").value = data.mobile;
     if (data.age) document.getElementById("age").value = data.age;
     if (data.gender) document.getElementById("gender").value = data.gender;
-    if (data.doctorName) document.getElementById("doctorName").value = data.doctorName;
+
+    let doc = (data.doctorName || "").trim();
+    if (!doc || /queue|visits|dashboard|eka|patient/i.test(doc) || !/^Dr\./i.test(doc)) {
+      doc = "Dr. Ashutosh Babhulkar";
+    }
+    document.getElementById("doctorName").value = doc;
+
     if (data.diagnosis) document.getElementById("diagnosis").value = data.diagnosis;
   }
 

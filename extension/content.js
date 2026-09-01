@@ -146,21 +146,30 @@
       if (mobMatch) details.mobile = mobMatch[1];
     }
 
-    // 4. Attending Doctor Name (Targeting Eka Care class & Dr. prefix)
-    const drElement = document.querySelector(".text-darwin-neutral-400, [class*='text-darwin-neutral'], .doctor-name, [data-testid='doctor-name']");
-    if (drElement) {
-      const drText = drElement.textContent.trim();
-      const match = drText.match(/Dr\.\s+[A-Za-z\s.]+/i);
-      if (match) {
-        details.doctorName = match[0].trim();
-      } else if (drText) {
-        details.doctorName = drText;
+    // 4. Attending Doctor Name (Targeting Eka Care Dr. prefix & filtering 'Queue')
+    let foundDoctor = "";
+    const drElements = document.querySelectorAll(".doctor-name, [data-testid='doctor-name'], [class*='doctor'], [class*='text-darwin']");
+    for (const el of drElements) {
+      const txt = el.textContent.trim();
+      if (txt && /Dr\./i.test(txt)) {
+        const match = txt.match(/Dr\.\s+[A-Za-z\s.]+/i);
+        if (match) {
+          foundDoctor = match[0].trim();
+          break;
+        }
       }
     }
-    if (!details.doctorName) {
+
+    if (!foundDoctor) {
       const drMatch = (document.body.innerText || "").match(/\b(Dr\.\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/);
-      if (drMatch) details.doctorName = drMatch[1].trim();
+      if (drMatch) foundDoctor = drMatch[1].trim();
     }
+
+    // Sanitize & default doctor name
+    if (!foundDoctor || /queue|visits|dashboard|eka|patient/i.test(foundDoctor) || !/^Dr\./i.test(foundDoctor)) {
+      foundDoctor = "Dr. Ashutosh Babhulkar";
+    }
+    details.doctorName = foundDoctor;
 
     // 5. Admission Date
     details.admissionDate = getText([
@@ -176,20 +185,50 @@
 
     // 6. Diagnosis Parsing (Eka Care Diagnosis section & Tailwind structure)
     const diagnosisList = [];
-    const diagnosisHeadings = Array.from(document.querySelectorAll("p, div, span, h1, h2, h3, h4"))
-      .filter(el => el.children.length === 0 && /^Diagnosis$/i.test(el.textContent.trim()));
+    
+    // Find all DOM elements containing the word "Diagnosis"
+    const allNodes = Array.from(document.querySelectorAll("p, div, span, h1, h2, h3, h4, strong, [class*='text-']"));
+    const diagnosisHeadings = allNodes.filter(el => {
+      const text = (el.textContent || "").trim();
+      return /^diagnosis$/i.test(text) || /^diagnosis$/i.test(text.replace(/[^a-zA-Z]/g, ""));
+    });
 
     for (const heading of diagnosisHeadings) {
-      const container = heading.closest(".space-y-8, .bg-white, section, div");
-      if (container) {
-        const spanElements = container.querySelectorAll(".space-y-10 span.font-600, .space-y-10 div span, span.font-600");
-        spanElements.forEach(span => {
-          const txt = span.textContent.trim();
-          if (txt && !/Diagnosis/i.test(txt) && !diagnosisList.includes(txt)) {
+      // Traverse up to find container
+      let container = heading.parentElement;
+      for (let depth = 0; depth < 5; depth++) {
+        if (!container || container === document.body) break;
+
+        const items = container.querySelectorAll(".space-y-10 span, .space-y-10 div, span.font-600, .font-600, div > span");
+        items.forEach(node => {
+          const txt = node.textContent.trim();
+          if (txt && !/diagnosis/i.test(txt) && !diagnosisList.includes(txt)) {
             diagnosisList.push(txt);
           }
         });
+
         if (diagnosisList.length > 0) break;
+        container = container.parentElement;
+      }
+
+      if (diagnosisList.length > 0) break;
+    }
+
+    // HTML fallback if DOM structural query returned empty
+    if (diagnosisList.length === 0) {
+      const pageHtml = document.body ? document.body.innerHTML : "";
+      const diagMatch = pageHtml.match(/Diagnosis[\s\S]*?<div[^>]*class="[^"]*space-y-10[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i);
+      if (diagMatch && diagMatch[1]) {
+        const inner = diagMatch[1];
+        const spanMatches = inner.match(/<span[^>]*>([\s\S]*?)<\/span>/gi);
+        if (spanMatches) {
+          spanMatches.forEach(s => {
+            const txt = s.replace(/<[^>]+>/g, '').trim();
+            if (txt && !/diagnosis/i.test(txt) && !diagnosisList.includes(txt)) {
+              diagnosisList.push(txt);
+            }
+          });
+        }
       }
     }
 
@@ -203,20 +242,21 @@
       ]);
     }
 
-    // 7. Procedure Parsing (Eka Care procedure table cells)
-    const procedureCells = document.querySelectorAll("td.border.border-neutral-8, td.py-16, td[class*='procedure']");
-    const procedureList = [];
-    procedureCells.forEach(cell => {
-      if (cell.closest("thead")) return;
-      const txt = cell.textContent.trim();
-      if (txt && !/^(?:S\.?No|Particulars|Procedure Name|Action|Status|Date|Diagnosis|Qty|Cost|Total|Sr\.?\s*No\.?)$/i.test(txt) && !procedureList.includes(txt)) {
-        procedureList.push(txt);
-      }
-    });
+    // 7. Procedure Parsing (Only set if details.diagnosis is empty)
+    if (!details.diagnosis) {
+      const procedureCells = document.querySelectorAll("td.border.border-neutral-8, td.py-16, td[class*='procedure']");
+      const procedureList = [];
+      procedureCells.forEach(cell => {
+        if (cell.closest("thead")) return;
+        const txt = cell.textContent.trim();
+        if (txt && !/^(?:S\.?No|Particulars|Procedure Name|Action|Status|Date|Diagnosis|Qty|Cost|Total|Sr\.?\s*No\.?)$/i.test(txt) && !procedureList.includes(txt)) {
+          procedureList.push(txt);
+        }
+      });
 
-    if (procedureList.length > 0) {
-      const procText = procedureList[0];
-      details.diagnosis = procText;
+      if (procedureList.length > 0) {
+        details.diagnosis = procedureList[0];
+      }
     }
 
 
@@ -235,68 +275,6 @@
     return details;
   }
 
-
-  // Create floating button on Eka Care page for instant bill generation
-  function injectFloatingBillingButton() {
-    if (document.getElementById("eka-billing-agent-fab")) return;
-
-    const fab = document.createElement("div");
-    fab.id = "eka-billing-agent-fab";
-    fab.innerHTML = `
-      <button id="eka-billing-fab-btn" title="Generate Hospital Surgery Bill">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-          <polyline points="14 2 14 8 20 8"></polyline>
-          <line x1="16" y1="13" x2="8" y2="13"></line>
-          <line x1="16" y1="17" x2="8" y2="17"></line>
-          <polyline points="10 9 9 9 8 9"></polyline>
-        </svg>
-        <span>Generate Hospital Bill</span>
-      </button>
-    `;
-
-    // Style the floating button
-    const style = document.createElement("style");
-    style.textContent = `
-      #eka-billing-agent-fab {
-        position: fixed;
-        bottom: 24px;
-        right: 24px;
-        z-index: 999999;
-        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      }
-      #eka-billing-fab-btn {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        background: linear-gradient(135deg, #2563eb, #1d4ed8);
-        color: #ffffff;
-        border: none;
-        padding: 12px 20px;
-        border-radius: 50px;
-        font-weight: 600;
-        font-size: 14px;
-        cursor: pointer;
-        box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.4), 0 8px 10px -6px rgba(37, 99, 235, 0.2);
-        transition: all 0.2s ease-in-out;
-      }
-      #eka-billing-fab-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 14px 28px -4px rgba(37, 99, 235, 0.5);
-        background: linear-gradient(135deg, #1d4ed8, #1e40af);
-      }
-      #eka-billing-fab-btn:active {
-        transform: translateY(0);
-      }
-    `;
-
-    document.head.appendChild(style);
-    document.body.appendChild(fab);
-
-    document.getElementById("eka-billing-fab-btn").addEventListener("click", () => {
-      openBillingAgentWithExtractedData();
-    });
-  }
 
   // Open billing agent web app with extracted parameters
   function openBillingAgentWithExtractedData() {
@@ -344,11 +322,4 @@
       window.postMessage({ type: "RESPONSE_EKA_PATIENT_DATA", data }, "*");
     }
   });
-
-  // Inject floating button after DOM is ready
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", injectFloatingBillingButton);
-  } else {
-    injectFloatingBillingButton();
-  }
 })();

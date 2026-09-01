@@ -58,67 +58,72 @@
 .pdf-header {
   position: relative;
   z-index: 1;
-  border-top: 5px solid #1e3a8a;
-  padding-top: 10px;
+  border-top: 4px solid var(--header-theme-color, #005a5b);
+  border-bottom: 4px solid var(--header-theme-color, #005a5b);
+  padding: 10px 0;
   margin-bottom: 16px;
 }
 
 .pdf-header-top {
   display: flex;
   align-items: center;
-  gap: 20px;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .pdf-logo-wrapper {
   flex-shrink: 0;
-  width: 90px;
-  height: 90px;
+  width: 160px;
+  height: 95px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .pdf-logo-img {
-  max-width: 90px;
-  max-height: 90px;
+  max-width: 160px;
+  max-height: 95px;
   object-fit: contain;
 }
 
 .pdf-logo-placeholder {
-  width: 80px;
-  height: 80px;
-  background: rgba(37, 99, 235, 0.08);
-  border-radius: 12px;
+  width: 140px;
+  height: 85px;
+  background: rgba(0, 90, 91, 0.08);
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1.5px dashed rgba(37, 99, 235, 0.3);
+  border: 1.5px dashed rgba(0, 90, 91, 0.3);
 }
 
 .pdf-hospital-details {
   flex: 1;
+  padding-right: 8px;
 }
 
 .hospital-name {
   font-size: 20px;
   font-weight: 800;
   margin: 0 0 3px 0;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.2px;
   text-transform: uppercase;
+  color: var(--header-theme-color, #005a5b);
+  line-height: 1.15;
 }
 
 .hospital-tagline {
   font-size: 11px;
   font-weight: 600;
-  color: #64748b;
+  color: #475569;
   margin: 0 0 4px 0;
 }
 
 .hospital-address, .hospital-contact {
   font-size: 10.5px;
-  color: #475569;
+  color: #334155;
   margin: 0 0 2px 0;
-  line-height: 1.3;
+  line-height: 1.35;
 }
 
 .hospital-reg-row {
@@ -127,11 +132,66 @@
   margin-top: 4px;
 }
 
+/* Right Header Panel (Doctors & Credentials Block - Angled Chevron & Color Matching) */
+.pdf-header-right-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.pdf-header-right {
+  position: relative;
+  flex-shrink: 0;
+  max-width: 295px;
+  border-left: 3px solid var(--header-theme-color, #005a5b);
+  padding: 4px 6px 4px 14px;
+  color: var(--header-theme-color, #005a5b);
+  box-sizing: border-box;
+}
+
+.doctor-profile-card {
+  margin-bottom: 7px;
+}
+
+.doctor-profile-card:last-child {
+  margin-bottom: 0;
+}
+
+.doctor-profile-name {
+  font-family: 'Noto Sans Devanagari', 'Segoe UI', sans-serif;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--header-theme-color, #005a5b);
+  line-height: 1.25;
+  margin-bottom: 1px;
+  letter-spacing: -0.1px;
+}
+
+.doctor-profile-degree {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 8.2px;
+  font-weight: 700;
+  color: var(--header-theme-color, #005a5b);
+  text-transform: uppercase;
+  line-height: 1.25;
+  letter-spacing: 0.1px;
+  opacity: 0.92;
+}
+
+.doctor-profile-spec {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 7.6px;
+  font-weight: 600;
+  color: var(--header-theme-color, #005a5b);
+  text-transform: uppercase;
+  line-height: 1.2;
+  letter-spacing: 0.2px;
+  opacity: 0.88;
+}
+
 .pdf-header-divider {
-  height: 3px;
-  width: 100%;
-  margin-top: 12px;
-  border-radius: 2px;
+  display: none;
 }
 
 /* Bill Title Banner */

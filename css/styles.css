@@ -9,9 +9,9 @@
   --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-heading: 'Outfit', sans-serif;
 
-  --header-theme-color: #1e3a8a;
-  --accent-blue: #2563eb;
-  --accent-blue-hover: #1d4ed8;
+  --header-theme-color: #005a5b;
+  --accent-blue: #005a5b;
+  --accent-blue-hover: #004748;
 
   /* Light Theme Palette (Default) */
   --bg-primary: #f1f5f9;
@@ -501,6 +501,92 @@ textarea.form-control {
   font-size: 12px;
 }
 
+/* Payment Stage Badges */
+.badge-stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.badge-stage-advance {
+  background: rgba(37, 99, 235, 0.15);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.badge-stage-discharge {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-stage-interim {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-stage-insurance {
+  background: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+.badge-stage-refund {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+
+/* Payment Summary Stats Bar */
+.payment-stats-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.payment-stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.payment-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.payment-stat-value {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.btn-amber {
+  background: linear-gradient(135deg, #d97706, #b45309);
+  color: #ffffff;
+}
+
+.btn-amber:hover {
+  background: linear-gradient(135deg, #b45309, #92400e);
+  color: #ffffff;
+}
+
 .btn-icon {
   width: 32px;
   height: 32px;
@@ -642,3 +728,4 @@ textarea.form-control {
     grid-template-columns: 1fr;
   }
 }
+

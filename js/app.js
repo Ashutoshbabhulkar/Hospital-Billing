@@ -121,9 +121,9 @@ class BillingApp {
 
     const cloudKeyInput = document.getElementById("cloudAppKeyInput");
     if (cloudKeyInput) {
-      cloudKeyInput.value = window.cloudDBStore.config.appKey || "hospital_billing_ashutosh";
+      cloudKeyInput.value = window.cloudDBStore.config.appKey || "aashospital2026";
       cloudKeyInput.addEventListener("change", (e) => {
-        const val = e.target.value.trim() || "hospital_billing_ashutosh";
+        const val = e.target.value.trim() || "aashospital2026";
         window.cloudDBStore.saveConfig({ appKey: val });
         this.syncCloudNow();
       });
@@ -140,34 +140,42 @@ class BillingApp {
       this.updateCloudBadge(status);
     });
 
-    // Fetch master online cloud memory on startup
+    // Fetch and merge online cloud memory on startup
     await this.syncCloudNow();
+
+    // Auto-sync when window re-gains focus or visibility (phone/desktop switching)
+    window.addEventListener("focus", () => {
+      if (window.cloudDBStore && window.cloudDBStore.config.autoSync) {
+        window.cloudDBStore.fetchFromCloud().then(changed => {
+          if (changed) {
+            this.loadSurgeryPresetsDropdown();
+            this.renderDoctorsDropdown();
+            this.setupHeaderFooterForm();
+            this.renderHistoryTable();
+            this.renderPdfPreview();
+          }
+        });
+      }
+    });
   }
 
   async syncCloudNow() {
     if (!window.cloudDBStore) return;
-    const onlineData = await window.cloudDBStore.fetchFromCloud();
-    if (onlineData) {
-      if (onlineData.headerSettings && window.headerFooterStore) {
-        window.headerFooterStore.saveSettings(onlineData.headerSettings);
-      }
-      if (Array.isArray(onlineData.historyBills) && window.historyStore) {
-        localStorage.setItem("hospital_billing_history_v1", JSON.stringify(onlineData.historyBills));
-      }
-      if (Array.isArray(onlineData.customSurgeries) && window.surgeryPresetStore) {
-        window.surgeryPresetStore.customPresets = onlineData.customSurgeries;
-        window.surgeryPresetStore.persist();
-      }
-      this.loadSurgeryPresetsDropdown();
-      this.renderDoctorsDropdown();
-      this.setupHeaderFooterForm();
-      this.renderHistoryTable();
-      this.renderPdfPreview();
+    const changed = await window.cloudDBStore.fetchFromCloud();
+    
+    // Always push latest state back to cloud after fetch merge to ensure cloud key is updated
+    await window.cloudDBStore.pushToCloud();
+
+    this.loadSurgeryPresetsDropdown();
+    this.renderDoctorsDropdown();
+    this.setupHeaderFooterForm();
+    this.renderHistoryTable();
+    this.renderPdfPreview();
+
+    if (changed) {
       this.showNotification("☁️ Online Cloud Memory Synced!", "success");
     } else {
-      // Push local data to cloud key if cloud bin is uninitialized
-      await window.cloudDBStore.pushToCloud();
-      this.showNotification("☁️ Initialized Online Cloud Memory!", "info");
+      this.showNotification("☁️ Memory Synced with Online Database!", "info");
     }
   }
 
@@ -331,8 +339,8 @@ class BillingApp {
 
   applyThemeFromSettings(settings) {
     if (!settings) return;
-    const headerColor = settings.headerColor || "#1e3a8a";
-    const accentColor = settings.accentColor || "#2563eb";
+    const headerColor = settings.headerColor || "#005a5b";
+    const accentColor = settings.accentColor || "#005a5b";
     const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
 
     const root = document.documentElement;
@@ -353,17 +361,17 @@ class BillingApp {
   }
 
   hexToRgba(hex, alpha = 1) {
-    if (!hex || typeof hex !== 'string') return `rgba(30, 58, 138, ${alpha})`;
+    if (!hex || typeof hex !== 'string') return `rgba(0, 90, 91, ${alpha})`;
     const cleanHex = hex.replace('#', '').trim();
-    let r = 30, g = 58, b = 138;
+    let r = 0, g = 90, b = 91;
     if (cleanHex.length === 3) {
-      r = parseInt(cleanHex[0] + cleanHex[0], 16) || 30;
-      g = parseInt(cleanHex[1] + cleanHex[1], 16) || 58;
-      b = parseInt(cleanHex[2] + cleanHex[2], 16) || 138;
+      r = parseInt(cleanHex[0] + cleanHex[0], 16) || 0;
+      g = parseInt(cleanHex[1] + cleanHex[1], 16) || 90;
+      b = parseInt(cleanHex[2] + cleanHex[2], 16) || 91;
     } else if (cleanHex.length === 6) {
-      r = parseInt(cleanHex.substring(0, 2), 16) || 30;
-      g = parseInt(cleanHex.substring(2, 4), 16) || 58;
-      b = parseInt(cleanHex.substring(4, 6), 16) || 138;
+      r = parseInt(cleanHex.substring(0, 2), 16) || 0;
+      g = parseInt(cleanHex.substring(2, 4), 16) || 90;
+      b = parseInt(cleanHex.substring(4, 6), 16) || 91;
     }
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
@@ -546,14 +554,18 @@ class BillingApp {
     this.showNotification(`Loaded package preset: ${preset.name}`, "info");
   }
 
-  addPaymentEntry(mode = "Cash", amount = 10000, reference = "") {
+  addPaymentEntry(mode = "Cash", amount = 10000, reference = "", stage = "At Discharge", date = "") {
     if (!this.billData.paymentEntries) this.billData.paymentEntries = [];
-    this.billData.paymentEntries.push({
+    const today = new Date().toISOString().split("T")[0];
+    const newEntry = {
       id: Date.now() + Math.random(),
-      mode: mode,
-      amount: amount,
-      reference: reference
-    });
+      date: date || today,
+      stage: stage || "At Discharge",
+      mode: mode || "Cash",
+      amount: parseFloat(amount) || 0,
+      reference: reference || ""
+    };
+    this.billData.paymentEntries.push(newEntry);
     this.renderPaymentEntriesTable();
     this.updateCalculations();
     this.renderPdfPreview();
@@ -566,6 +578,123 @@ class BillingApp {
     this.renderPdfPreview();
   }
 
+  clearAllPayments() {
+    if (confirm("Clear all patient payment entries for this bill?")) {
+      this.billData.paymentEntries = [];
+      this.billData.advancePaid = 0;
+      this.renderPaymentEntriesTable();
+      this.updateCalculations();
+      this.renderPdfPreview();
+      this.showNotification("Cleared all payment entries", "info");
+    }
+  }
+
+  autoFillBalancePayment() {
+    this.updateCalculations();
+    const due = this.billData.balanceDue || 0;
+    if (due <= 0) {
+      this.showNotification("Bill balance is already fully paid!", "info");
+      return;
+    }
+    this.addPaymentEntry("Cash", due, "Discharge Settlement", "At Discharge");
+    this.showNotification(`Added ₹${due.toLocaleString('en-IN')} payment at discharge!`, "success");
+  }
+
+  printIndividualReceipt(entryId) {
+    const entry = (this.billData.paymentEntries || []).find(p => p.id === entryId);
+    if (!entry) return;
+
+    const settings = window.headerFooterStore ? window.headerFooterStore.getSettings() : {};
+    const data = this.billData;
+
+    const receiptNo = `REC-${(entry.date || '').replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
+    const amountWords = numberToWordsINR(entry.amount);
+
+    const win = window.open("", "_blank", "width=800,height=900");
+    if (!win) {
+      alert("Please allow popups to print individual payment receipt.");
+      return;
+    }
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Payment Receipt - ${receiptNo}</title>
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #1e293b; max-width: 700px; margin: 0 auto; }
+          .receipt-box { border: 2px solid ${settings.headerColor || '#005a5b'}; border-radius: 10px; padding: 25px; background: #fff; }
+          .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid ${settings.headerColor || '#005a5b'}; padding-bottom: 15px; margin-bottom: 15px; }
+          .h-name { font-size: 20px; font-weight: 800; color: ${settings.headerColor || '#005a5b'}; text-transform: uppercase; margin: 0; }
+          .h-sub { font-size: 11px; color: #64748b; margin-top: 4px; }
+          .receipt-title { text-align: center; background: #f1f5f9; padding: 6px; font-weight: 800; border-radius: 4px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; color: #0f172a; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px; margin-bottom: 20px; }
+          .amount-highlight { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px; margin-top: 15px; display: flex; justify-content: space-between; align-items: center; }
+          .amount-val { font-size: 22px; font-weight: 800; color: #16a34a; }
+          .words { font-size: 12px; font-weight: 600; color: #475569; margin-top: 6px; }
+          .footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 40px; padding-top: 15px; border-top: 1px solid #cbd5e1; font-size: 11px; color: #64748b; }
+          .sig-box { text-align: center; }
+          .sig-line { border-top: 1px solid #0f172a; width: 160px; margin-top: 30px; font-weight: 700; font-size: 12px; color: #0f172a; }
+          @media print { .no-print { display: none; } }
+        </style>
+      </head>
+      <body>
+        <div class="receipt-box">
+          <div class="header">
+            <div>
+              <h1 class="h-name">${settings.hospitalName || 'HOSPITAL'}</h1>
+              <div class="h-sub">${settings.hospitalAddress || ''} ${settings.hospitalPhone ? '| Ph: ' + settings.hospitalPhone : ''}</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-weight: 700; font-size: 13px;">RECEIPT NO: ${receiptNo}</div>
+              <div style="font-size: 12px; color: #64748b;">Date: ${entry.date || new Date().toISOString().split('T')[0]}</div>
+            </div>
+          </div>
+
+          <div class="receipt-title">
+            OFFICIAL PAYMENT & ACKNOWLEDGEMENT RECEIPT
+          </div>
+
+          <div class="grid">
+            <div><strong>Patient Name:</strong> ${data.patientName || 'N/A'}</div>
+            <div><strong>UHID / IPD No:</strong> ${data.uhid || 'N/A'}</div>
+            <div><strong>Attending Doctor:</strong> ${data.doctorName || 'Dr. Ashutosh Babhulkar'}</div>
+            <div><strong>Bill Invoice No:</strong> ${data.billNo || 'N/A'}</div>
+            <div><strong>Payment Stage:</strong> <span style="color: #2563eb; font-weight: 700;">${entry.stage || 'Payment'}</span></div>
+            <div><strong>Payment Mode:</strong> ${entry.mode || 'Cash'}</div>
+          </div>
+
+          ${entry.reference ? `<div style="font-size: 12px; background: #f8fafc; padding: 8px; border-radius: 4px; margin-bottom: 15px;"><strong>Transaction Ref / Notes:</strong> ${entry.reference}</div>` : ''}
+
+          <div class="amount-highlight">
+            <div>
+              <div style="font-size: 11px; text-transform: uppercase; color: #166534; font-weight: 700;">AMOUNT RECEIVED</div>
+              <div class="words">${amountWords}</div>
+            </div>
+            <div class="amount-val">₹${(parseFloat(entry.amount) || 0).toLocaleString('en-IN')}</div>
+          </div>
+
+          <div class="footer">
+            <div>
+              Thank you! This is an official computer-generated receipt.<br/>
+              Generated by Hospital Billing Agent.
+            </div>
+            <div class="sig-box">
+              <div class="sig-line">${settings.signatoryName || 'Authorized Signatory'}</div>
+              <div>${settings.signatoryTitle || 'Accounts / Cashier'}</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 20px;" class="no-print">
+          <button onclick="window.print()" style="padding: 10px 20px; font-size: 14px; font-weight: 700; background: #005a5b; color: #fff; border: none; border-radius: 6px; cursor: pointer;">🖨️ Print Receipt</button>
+        </div>
+      </body>
+      </html>
+    `);
+    win.document.close();
+  }
+
   renderPaymentEntriesTable() {
     const tbody = document.getElementById("paymentEntriesTableBody");
     if (!tbody) return;
@@ -573,9 +702,17 @@ class BillingApp {
     tbody.innerHTML = "";
 
     if (!this.billData.paymentEntries || this.billData.paymentEntries.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted" style="padding: 10px;">No payment modes added. Click "+ Add Payment Mode"</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted" style="padding: 14px;">No payments recorded yet. Click "+ Add Advance" or "+ Add at Discharge" to enter payments.</td></tr>`;
       return;
     }
+
+    const stages = [
+      "Advance Payment",
+      "At Discharge",
+      "Interim Deposit",
+      "Insurance / TPA Claim",
+      "Refund / Credit"
+    ];
 
     const modes = [
       "Cash", 
@@ -583,32 +720,76 @@ class BillingApp {
       "Credit / Debit Card", 
       "Bank NEFT / RTGS", 
       "Insurance TPA / Cashless", 
-      "Cheque"
+      "Cheque",
+      "Demand Draft"
     ];
 
+    const today = new Date().toISOString().split("T")[0];
+
     this.billData.paymentEntries.forEach((entry) => {
+      if (!entry.stage) entry.stage = "At Discharge";
+      if (!entry.date) entry.date = today;
+
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>
+        <td style="width: 140px;">
+          <input type="date" class="form-control form-control-sm pay-date" data-id="${entry.id}" value="${entry.date}">
+        </td>
+        <td style="width: 160px;">
+          <select class="form-control form-control-sm pay-stage" data-id="${entry.id}">
+            ${stages.map(s => `<option value="${s}" ${entry.stage === s ? 'selected' : ''}>${s}</option>`).join('')}
+          </select>
+        </td>
+        <td style="width: 160px;">
           <select class="form-control form-control-sm pay-mode" data-id="${entry.id}">
             ${modes.map(m => `<option value="${m}" ${entry.mode === m ? 'selected' : ''}>${m}</option>`).join('')}
           </select>
         </td>
-        <td>
-          <input type="number" min="0" step="500" class="form-control form-control-sm pay-amount" data-id="${entry.id}" value="${entry.amount}">
+        <td style="width: 120px;">
+          <input type="number" min="0" step="500" class="form-control form-control-sm pay-amount" data-id="${entry.id}" value="${entry.amount}" style="font-weight: 700; color: #34d399 !important; background: #0b1329;">
         </td>
         <td>
-          <input type="text" class="form-control form-control-sm pay-ref" data-id="${entry.id}" value="${entry.reference || ''}" placeholder="Txn ID, Ref or Notes">
+          <input type="text" class="form-control form-control-sm pay-ref" data-id="${entry.id}" value="${entry.reference || ''}" placeholder="Txn ID, Receipt # or notes">
         </td>
-        <td style="text-align: center;">
-          <button class="btn-icon btn-icon-danger btn-remove-pay" data-id="${entry.id}" title="Remove Payment Mode">
-            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
+        <td style="text-align: center; width: 75px;">
+          <div style="display: flex; gap: 4px; justify-content: center;">
+            <button class="btn-icon btn-print-receipt" data-id="${entry.id}" title="Print Receipt for this Payment" style="color: #38bdf8; border-color: rgba(56, 189, 248, 0.3);">
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H7a2 2 0 00-2 2v4h10z" />
+              </svg>
+            </button>
+            <button class="btn-icon btn-icon-danger btn-remove-pay" data-id="${entry.id}" title="Remove Payment Entry">
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
         </td>
       `;
       tbody.appendChild(tr);
+    });
+
+    tbody.querySelectorAll(".pay-date").forEach(input => {
+      input.addEventListener("change", (e) => {
+        const id = parseFloat(e.target.getAttribute("data-id"));
+        const item = this.billData.paymentEntries.find(p => p.id === id);
+        if (item) {
+          item.date = e.target.value;
+          this.renderPdfPreview();
+        }
+      });
+    });
+
+    tbody.querySelectorAll(".pay-stage").forEach(select => {
+      select.addEventListener("change", (e) => {
+        const id = parseFloat(e.target.getAttribute("data-id"));
+        const item = this.billData.paymentEntries.find(p => p.id === id);
+        if (item) {
+          item.stage = e.target.value;
+          this.updateCalculations();
+          this.renderPdfPreview();
+        }
+      });
     });
 
     tbody.querySelectorAll(".pay-mode").forEach(select => {
@@ -642,6 +823,13 @@ class BillingApp {
           item.reference = e.target.value;
           this.renderPdfPreview();
         }
+      });
+    });
+
+    tbody.querySelectorAll(".btn-print-receipt").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = parseFloat(btn.getAttribute("data-id"));
+        this.printIndividualReceipt(id);
       });
     });
 
@@ -744,9 +932,26 @@ class BillingApp {
       this.renderPdfPreview();
     });
 
-    // Add Payment Entry Button
+    // Payment Action Buttons
+    document.getElementById("btnAddAdvancePay")?.addEventListener("click", () => {
+      this.addPaymentEntry("Cash", 10000, "Advance Deposit", "Advance Payment");
+    });
+
+    document.getElementById("btnAddDischargePay")?.addEventListener("click", () => {
+      const due = this.billData.balanceDue || 10000;
+      this.addPaymentEntry("Cash", due, "Discharge Settlement", "At Discharge");
+    });
+
+    document.getElementById("btnAutoFillBalance")?.addEventListener("click", () => {
+      this.autoFillBalancePayment();
+    });
+
     document.getElementById("btnAddPaymentEntry")?.addEventListener("click", () => {
       this.addPaymentEntry();
+    });
+
+    document.getElementById("btnClearAllPayments")?.addEventListener("click", () => {
+      this.clearAllPayments();
     });
 
     // Save Payment Details Buttons
@@ -938,14 +1143,27 @@ class BillingApp {
     const taxAmt = (taxableAmt * (this.billData.taxPercent || 0)) / 100;
     const grandTotal = Math.round(taxableAmt + taxAmt);
     
-    const paidAtDischarge = (this.billData.paymentEntries || []).reduce((sum, p) => sum + (p.amount || 0), 0);
-    const advancePaid = this.billData.advancePaid || 0;
+    const advancePayments = (this.billData.paymentEntries || [])
+      .filter(p => p.stage === "Advance Payment")
+      .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+
+    const otherPayments = (this.billData.paymentEntries || [])
+      .filter(p => p.stage !== "Advance Payment")
+      .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+
+    let advancePaid = advancePayments;
+    if ((!this.billData.paymentEntries || this.billData.paymentEntries.length === 0) && (this.billData.advancePaid || 0) > 0) {
+      advancePaid = parseFloat(this.billData.advancePaid) || 0;
+    }
+
+    const paidAtDischarge = otherPayments;
     const totalPaidSoFar = advancePaid + paidAtDischarge;
     const balanceDue = Math.max(0, grandTotal - totalPaidSoFar);
 
     this.billData.subtotal = subtotal;
     this.billData.totalDiscount = totalDiscount;
     this.billData.grandTotal = grandTotal;
+    this.billData.advancePaid = advancePaid;
     this.billData.paidAtDischarge = paidAtDischarge;
     this.billData.totalPaymentsCollected = totalPaidSoFar;
     this.billData.balanceDue = balanceDue;
@@ -953,7 +1171,7 @@ class BillingApp {
 
     // Auto update status dynamically based on total paid vs grand total
     if (totalPaidSoFar >= grandTotal && grandTotal > 0) {
-      this.billData.paymentStatus = "Paid";
+      this.billData.paymentStatus = (totalPaidSoFar > grandTotal) ? "Overpaid" : "Paid";
     } else if (totalPaidSoFar > 0) {
       this.billData.paymentStatus = "Partially Paid";
     } else {
@@ -962,6 +1180,9 @@ class BillingApp {
 
     const statusEl = document.getElementById("paymentStatus");
     if (statusEl) statusEl.value = this.billData.paymentStatus;
+
+    const advanceEl = document.getElementById("advancePaid");
+    if (advanceEl) advanceEl.value = advancePaid;
 
     // Update Summary UI Elements
     const elSubtotal = document.getElementById("summarySubtotal");
@@ -981,6 +1202,22 @@ class BillingApp {
 
     const elWords = document.getElementById("summaryAmountInWords");
     if (elWords) elWords.textContent = this.billData.amountInWords;
+
+    // Update Payment Section Financial Stats Bar
+    const statGt = document.getElementById("payStatGrandTotal");
+    if (statGt) statGt.textContent = `₹${grandTotal.toLocaleString('en-IN')}`;
+
+    const statAdv = document.getElementById("payStatAdvance");
+    if (statAdv) statAdv.textContent = `₹${advancePaid.toLocaleString('en-IN')}`;
+
+    const statDis = document.getElementById("payStatDischarge");
+    if (statDis) statDis.textContent = `₹${paidAtDischarge.toLocaleString('en-IN')}`;
+
+    const statCol = document.getElementById("payStatCollected");
+    if (statCol) statCol.textContent = `₹${totalPaidSoFar.toLocaleString('en-IN')}`;
+
+    const statBal = document.getElementById("payStatBalance");
+    if (statBal) statBal.textContent = `₹${balanceDue.toLocaleString('en-IN')}`;
   }
 
   setupHeaderFooterForm() {
@@ -990,7 +1227,8 @@ class BillingApp {
       "hospitalName", "hospitalTagline", "hospitalAddress", "hospitalPhone", 
       "hospitalEmail", "hospitalWebsite", "regNo", "gstNo", "headerColor", 
       "accentColor", "watermarkText", "footerTerms", "signatoryName", 
-      "signatoryTitle", "emergencyContact"
+      "signatoryTitle", "emergencyContact", "headerRightBlock",
+      "doc1Name", "doc1Degree", "doc1Spec", "doc2Name", "doc2Degree", "doc2Spec"
     ];
 
     fields.forEach(id => {
@@ -1002,6 +1240,14 @@ class BillingApp {
         });
       }
     });
+
+    const rightHeaderCb = document.getElementById("set-showRightHeaderBlock");
+    if (rightHeaderCb) {
+      rightHeaderCb.checked = settings.showRightHeaderBlock !== false;
+      rightHeaderCb.addEventListener("change", () => {
+        window.headerFooterStore.saveSettings({ showRightHeaderBlock: rightHeaderCb.checked });
+      });
+    }
 
     const watermarkCb = document.getElementById("set-showWatermark");
     if (watermarkCb) {
@@ -1066,6 +1312,7 @@ class BillingApp {
 
     const settings = window.headerFooterStore.getSettings();
     const data = this.billData;
+    const brandColor = settings.headerColor || '#005a5b';
 
     const formatDate = (isoStr) => {
       if (!isoStr) return "-";
@@ -1080,7 +1327,7 @@ class BillingApp {
     const logoHtml = settings.logoBase64 ? 
       `<img src="${settings.logoBase64}" class="pdf-logo-img" alt="Logo" />` : 
       `<div class="pdf-logo-placeholder">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="${settings.accentColor || '#2563eb'}" stroke-width="2">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="${brandColor}" stroke-width="2">
           <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
           <path d="M12 5v14M5 12h14"/>
         </svg>
@@ -1100,6 +1347,34 @@ class BillingApp {
 
     const watermarkHtml = settings.showWatermark ? 
       `<div class="pdf-watermark" contenteditable="true" data-setting-key="watermarkText">${settings.watermarkText || 'PAID'}</div>` : '';
+
+    const doc1Name = settings.doc1Name || "डॉ. आशुतोष विजय बाभुळकर";
+    const doc1Degree = settings.doc1Degree || "MBBS, MS ( GENERAL SURGERY), FMAS, FIAGES";
+    const doc1Spec = settings.doc1Spec || "GENERAL, ENDOSCOPIC AND LAPAROSCOPIC SURGEON";
+
+    const doc2Name = settings.doc2Name || "डॉ. स्नेहल करंजेकर (बाभुळकर)";
+    const doc2Degree = settings.doc2Degree || "MBBS, MD ( PATHOLOGY)";
+    const doc2Spec = settings.doc2Spec || "CONSULTANT SURGICAL AND CYTOPATHOLOGIST";
+
+    const rightHeaderHtml = (settings.showRightHeaderBlock !== false) ? `
+      <div class="pdf-header-right-wrapper">
+        <div class="pdf-header-right" style="border-left-color: ${brandColor};">
+          <svg width="14" height="100%" viewBox="0 0 14 100" preserveAspectRatio="none" style="position: absolute; left: -14px; top: 0; bottom: 0; height: 100%;">
+            <path d="M 14 0 L 2 50 L 14 100" fill="none" stroke="${brandColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <div class="doctor-profile-card">
+            <div class="doctor-profile-name" contenteditable="true" data-setting-key="doc1Name" style="color: ${brandColor};">${doc1Name}</div>
+            <div class="doctor-profile-degree" contenteditable="true" data-setting-key="doc1Degree" style="color: ${brandColor};">${doc1Degree}</div>
+            <div class="doctor-profile-spec" contenteditable="true" data-setting-key="doc1Spec" style="color: ${brandColor};">${doc1Spec}</div>
+          </div>
+          <div class="doctor-profile-card">
+            <div class="doctor-profile-name" contenteditable="true" data-setting-key="doc2Name" style="color: ${brandColor};">${doc2Name}</div>
+            <div class="doctor-profile-degree" contenteditable="true" data-setting-key="doc2Degree" style="color: ${brandColor};">${doc2Degree}</div>
+            <div class="doctor-profile-spec" contenteditable="true" data-setting-key="doc2Spec" style="color: ${brandColor};">${doc2Spec}</div>
+          </div>
+        </div>
+      </div>
+    ` : '';
 
     // Dynamically build contact line without website
     const contactParts = [];
@@ -1130,20 +1405,20 @@ class BillingApp {
         ${watermarkHtml}
         
         <!-- HEADER SECTION -->
-        <div class="pdf-header" style="border-top-color: ${settings.headerColor || '#1e3a8a'};">
+        <div class="pdf-header" style="border-top-color: ${settings.headerColor || '#005a5b'}; border-bottom-color: ${settings.headerColor || '#005a5b'};">
           <div class="pdf-header-top">
             <div class="pdf-logo-wrapper">
               ${logoHtml}
             </div>
             <div class="pdf-hospital-details">
-              <h1 class="hospital-name" contenteditable="true" data-setting-key="hospitalName" style="color: ${settings.headerColor || '#1e3a8a'};">${settings.hospitalName}</h1>
+              <h1 class="hospital-name" contenteditable="true" data-setting-key="hospitalName" style="color: ${settings.headerColor || '#005a5b'};">${settings.hospitalName}</h1>
               ${settings.hospitalTagline ? `<p class="hospital-tagline" contenteditable="true" data-setting-key="hospitalTagline">${settings.hospitalTagline}</p>` : ''}
               ${settings.hospitalAddress ? `<p class="hospital-address" contenteditable="true" data-setting-key="hospitalAddress">${settings.hospitalAddress}</p>` : ''}
               ${contactHtml}
               ${regHtml}
             </div>
+            ${rightHeaderHtml}
           </div>
-          <div class="pdf-header-divider" style="background: linear-gradient(90deg, ${settings.headerColor || '#1e3a8a'}, ${settings.accentColor || '#2563eb'});"></div>
         </div>
 
         <!-- BILL TITLE BANNER -->
@@ -1213,27 +1488,42 @@ class BillingApp {
             <!-- PAYMENT BREAKDOWN SPLIT TABLE IN PDF -->
             <div class="pdf-payment-split-container">
               <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-                <div class="pdf-payment-split-title" style="margin: 0;">Payment Breakdown & Split Modes:</div>
-                <button type="button" class="btn btn-sm btn-primary no-print btn-pdf-add-pay" style="font-size: 10px; padding: 2px 6px;">+ Add Mode</button>
+                <div class="pdf-payment-split-title" style="margin: 0; font-weight: 700;">Patient Payments & Settlement Ledger:</div>
+                <div class="no-print" style="display: flex; gap: 4px;">
+                  <button type="button" class="btn btn-sm btn-primary btn-pdf-add-advance" style="font-size: 10px; padding: 2px 6px;">+ Advance</button>
+                  <button type="button" class="btn btn-sm btn-emerald btn-pdf-add-discharge" style="font-size: 10px; padding: 2px 6px;">+ Discharge</button>
+                </div>
               </div>
               ${(data.paymentEntries && data.paymentEntries.length > 0) ? `
-              <table class="pdf-payment-split-table">
+              <table class="pdf-payment-split-table" style="width: 100%; border-collapse: collapse; font-size: 10px;">
+                <thead>
+                  <tr style="border-bottom: 1.5px solid #cbd5e1; background: #f8fafc;">
+                    <th style="padding: 3px 4px; text-align: left;">Date</th>
+                    <th style="padding: 3px 4px; text-align: left;">Stage / Type</th>
+                    <th style="padding: 3px 4px; text-align: left;">Mode</th>
+                    <th style="padding: 3px 4px; text-align: left;">Txn Ref</th>
+                    <th style="padding: 3px 4px; text-align: right;">Amount (₹)</th>
+                    <th class="no-print" style="width: 20px; text-align: center;"></th>
+                  </tr>
+                </thead>
                 <tbody>
                   ${data.paymentEntries.map(p => `
-                    <tr>
-                      <td contenteditable="true" data-pay-id="${p.id}" data-pay-key="mode"><strong>${p.mode}</strong></td>
-                      <td contenteditable="true" data-pay-id="${p.id}" data-pay-key="reference" style="color: #64748b;">${p.reference || 'Ref details'}</td>
-                      <td contenteditable="true" data-pay-id="${p.id}" data-pay-key="amount" style="text-align: right; font-weight: 600;">₹${(p.amount || 0).toLocaleString('en-IN')}</td>
+                    <tr style="border-bottom: 1px dotted #e2e8f0;">
+                      <td contenteditable="true" data-pay-id="${p.id}" data-pay-key="date" style="padding: 3px 4px; color: #475569;">${p.date || '-'}</td>
+                      <td contenteditable="true" data-pay-id="${p.id}" data-pay-key="stage" style="padding: 3px 4px;"><span class="badge-stage ${p.stage === 'Advance Payment' ? 'badge-stage-advance' : (p.stage === 'Insurance / TPA Claim' ? 'badge-stage-insurance' : 'badge-stage-discharge')}">${p.stage || 'At Discharge'}</span></td>
+                      <td contenteditable="true" data-pay-id="${p.id}" data-pay-key="mode" style="padding: 3px 4px;"><strong>${p.mode}</strong></td>
+                      <td contenteditable="true" data-pay-id="${p.id}" data-pay-key="reference" style="padding: 3px 4px; color: #64748b;">${p.reference || '-'}</td>
+                      <td contenteditable="true" data-pay-id="${p.id}" data-pay-key="amount" style="padding: 3px 4px; text-align: right; font-weight: 700; color: #0f172a;">₹${(parseFloat(p.amount) || 0).toLocaleString('en-IN')}</td>
                       <td class="no-print" style="width: 20px; text-align: center;">
-                        <button class="btn-icon btn-icon-danger btn-pdf-del-pay" data-pay-id="${p.id}" style="width: 18px; height: 18px; line-height: 1; padding: 0; font-size: 12px;" title="Remove Entry">×</button>
+                        <button class="btn-icon btn-icon-danger btn-pdf-del-pay" data-pay-id="${p.id}" style="width: 18px; height: 18px; line-height: 1; padding: 0; font-size: 12px;" title="Remove Payment Entry">×</button>
                       </td>
                     </tr>
                   `).join('')}
                 </tbody>
               </table>
               ` : `
-              <div style="font-size: 11px; color: #b45309; padding: 4px 8px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;">
-                <span>⚠️ Payment mode details pending. Balance: <strong>₹${(data.balanceDue || 0).toLocaleString('en-IN')}</strong></span>
+              <div style="font-size: 10.5px; color: #b45309; padding: 4px 8px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 4px; display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
+                <span>⚠️ No payments recorded. Balance Due: <strong>₹${(data.balanceDue || 0).toLocaleString('en-IN')}</strong></span>
               </div>
               `}
             </div>
@@ -1313,8 +1603,13 @@ class BillingApp {
     if (!container) return;
 
     // Attach Add/Delete Payment Buttons inside PDF
-    container.querySelector(".btn-pdf-add-pay")?.addEventListener("click", () => {
-      this.addPaymentEntry();
+    container.querySelector(".btn-pdf-add-advance")?.addEventListener("click", () => {
+      this.addPaymentEntry("Cash", 10000, "Advance Deposit", "Advance Payment");
+    });
+
+    container.querySelector(".btn-pdf-add-discharge")?.addEventListener("click", () => {
+      const due = this.billData.balanceDue || 10000;
+      this.addPaymentEntry("Cash", due, "Discharge Settlement", "At Discharge");
     });
 
     container.querySelectorAll(".btn-pdf-del-pay").forEach(btn => {
@@ -1393,7 +1688,7 @@ class BillingApp {
       return;
     }
 
-    // 4. Payment Entry Keys (Mode, Ref, Amount)
+    // 4. Payment Entry Keys (Mode, Stage, Date, Ref, Amount)
     const payId = el.getAttribute("data-pay-id");
     const payKey = el.getAttribute("data-pay-key");
     if (payId && payKey) {
@@ -1402,6 +1697,13 @@ class BillingApp {
       if (entry) {
         if (payKey === "mode") {
           entry.mode = rawText;
+        } else if (payKey === "stage") {
+          entry.stage = rawText;
+          this.updateCalculations();
+          this.renderPaymentEntriesTable();
+          this.renderPdfPreview();
+        } else if (payKey === "date") {
+          entry.date = rawText;
         } else if (payKey === "reference") {
           entry.reference = rawText;
         } else if (payKey === "amount") {
