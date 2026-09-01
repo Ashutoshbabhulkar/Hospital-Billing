@@ -1359,9 +1359,6 @@ class BillingApp {
     const rightHeaderHtml = (settings.showRightHeaderBlock !== false) ? `
       <div class="pdf-header-right-wrapper">
         <div class="pdf-header-right" style="border-left-color: ${brandColor};">
-          <svg width="14" height="100%" viewBox="0 0 14 100" preserveAspectRatio="none" style="position: absolute; left: -14px; top: 0; bottom: 0; height: 100%;">
-            <path d="M 14 0 L 2 50 L 14 100" fill="none" stroke="${brandColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
           <div class="doctor-profile-card">
             <div class="doctor-profile-name" contenteditable="true" data-setting-key="doc1Name" style="color: ${brandColor};">${doc1Name}</div>
             <div class="doctor-profile-degree" contenteditable="true" data-setting-key="doc1Degree" style="color: ${brandColor};">${doc1Degree}</div>
